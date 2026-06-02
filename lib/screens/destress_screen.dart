@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'dart:io';
 import 'dart:math' as math;
 import '../theme/app_theme.dart';
+import '../services/api_service.dart';
 
 enum BreathPhase { idle, inhale, hold, exhale }
 
@@ -25,6 +27,8 @@ class _DestressScreenState extends State<DestressScreen>
   // Áudio
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _audioOn = true;
+  bool _carregandoAudio = false;
+  bool _usandoPython = false;
 
   BreathPhase _phase = BreathPhase.idle;
   bool _isRunning = false;
@@ -68,7 +72,6 @@ class _DestressScreenState extends State<DestressScreen>
       end: AppTheme.destressAccent,
     ).animate(_colorController);
 
-    // Configurar áudio em loop
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
     _audioPlayer.setVolume(0.4);
   }
@@ -86,14 +89,37 @@ class _DestressScreenState extends State<DestressScreen>
 
   Future<void> _startAudio() async {
     if (!_audioOn) return;
+
+    setState(() => _carregandoAudio = true);
+
     try {
-      debugPrint('Tentando tocar áudio...');
-      await _audioPlayer.setSource(AssetSource('audio/destress_binaural.mp3'));
-      debugPrint('Source definido, iniciando...');
-      await _audioPlayer.resume();
-      debugPrint('Áudio iniciado!');
+      // Tenta usar o Python primeiro
+      final servidorOnline = await ApiService.verificarServidor();
+
+      if (servidorOnline) {
+        debugPrint('Servidor online — gerando binaural Python...');
+        final caminho = await ApiService.baixarBinauralDestress(duracao: 300);
+
+        if (caminho != null && mounted) {
+          await _audioPlayer.play(DeviceFileSource(caminho));
+          setState(() => _usandoPython = true);
+          debugPrint('Binaural Python tocando!');
+          return;
+        }
+      }
+
+      // Fallback — usa o .mp3 local
+      debugPrint('Servidor offline — usando áudio local...');
+      await _audioPlayer.play(AssetSource('audio/destress_binaural.mp3'));
+      if (mounted) setState(() => _usandoPython = false);
     } catch (e) {
       debugPrint('Erro de áudio: $e');
+      // Último recurso — tenta o local mesmo assim
+      try {
+        await _audioPlayer.play(AssetSource('audio/destress_binaural.mp3'));
+      } catch (_) {}
+    } finally {
+      if (mounted) setState(() => _carregandoAudio = false);
     }
   }
 
@@ -156,6 +182,7 @@ class _DestressScreenState extends State<DestressScreen>
       _isRunning = false;
       _phase = BreathPhase.idle;
       _countdown = 0;
+      _usandoPython = false;
     });
     _breathController.reset();
     _colorController.reverse();
@@ -294,7 +321,6 @@ class _DestressScreenState extends State<DestressScreen>
                           letterSpacing: 4,
                         ),
                       ),
-                      // Botão de áudio
                       IconButton(
                         onPressed: _toggleAudio,
                         icon: Icon(
@@ -310,7 +336,7 @@ class _DestressScreenState extends State<DestressScreen>
                   ),
                 ),
 
-                // Subtítulo
+                // Subtítulo + indicador Python/local
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Row(
@@ -324,12 +350,47 @@ class _DestressScreenState extends State<DestressScreen>
                           letterSpacing: 3,
                         ),
                       ),
-                      if (_isRunning) ...[
-                        const SizedBox(width: 12),
+                      if (_carregandoAudio) ...[
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: AppTheme.destressPrimary.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                      if (_isRunning && !_carregandoAudio) ...[
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 3,
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                (_usandoPython
+                                        ? Colors.greenAccent
+                                        : AppTheme.destressPrimary)
+                                    .withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            _usandoPython ? '🐍 binaural puro' : '📱 local',
+                            style: TextStyle(
+                              color: _usandoPython
+                                  ? Colors.greenAccent
+                                  : AppTheme.destressPrimary,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
                             color: AppTheme.destressPrimary.withOpacity(0.1),
@@ -339,7 +400,7 @@ class _DestressScreenState extends State<DestressScreen>
                             '$_cycleCount ciclos',
                             style: const TextStyle(
                               color: AppTheme.destressPrimary,
-                              fontSize: 11,
+                              fontSize: 10,
                             ),
                           ),
                         ),
