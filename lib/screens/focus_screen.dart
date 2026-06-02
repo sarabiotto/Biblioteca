@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:math' as math;
 import 'dart:async';
 import '../theme/app_theme.dart';
+import '../services/api_service.dart';
 
 enum FocusPhase { idle, inhale, hold1, exhale, hold2 }
 
@@ -24,9 +26,12 @@ class _FocusScreenState extends State<FocusScreen>
   late AnimationController _pulseController;
   late Animation<double> _circleScale;
   late Animation<double> _pulseAnim;
+
   // Áudio
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _audioOn = true;
+  bool _carregandoAudio = false;
+  bool _usandoPython = false;
 
   // Estado respiração
   FocusPhase _phase = FocusPhase.idle;
@@ -48,8 +53,6 @@ class _FocusScreenState extends State<FocusScreen>
   @override
   void initState() {
     super.initState();
-    _audioPlayer.setReleaseMode(ReleaseMode.loop);
-    _audioPlayer.setVolume(0.4);
 
     _breathController = AnimationController(
       vsync: this,
@@ -73,9 +76,11 @@ class _FocusScreenState extends State<FocusScreen>
     _pulseAnim = Tween<double>(begin: 0.97, end: 1.03).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    _audioPlayer.setVolume(0.4);
   }
 
-  @override
   @override
   void dispose() {
     _breathController.dispose();
@@ -86,23 +91,87 @@ class _FocusScreenState extends State<FocusScreen>
     super.dispose();
   }
 
+  // ── ÁUDIO ───────────────────────────────────────
+
+  Future<void> _startAudio() async {
+    if (!_audioOn) return;
+    setState(() => _carregandoAudio = true);
+    try {
+      final servidorOnline = await ApiService.verificarServidor();
+      if (servidorOnline) {
+        final caminho = await ApiService.baixarBinauralFoco(duracao: 300);
+        if (caminho != null && mounted) {
+          await _audioPlayer.play(DeviceFileSource(caminho));
+          setState(() => _usandoPython = true);
+          return;
+        }
+      }
+      await _audioPlayer.play(AssetSource('audio/focus_binaural.mp3'));
+      if (mounted) setState(() => _usandoPython = false);
+    } catch (e) {
+      try {
+        await _audioPlayer.play(AssetSource('audio/focus_binaural.mp3'));
+      } catch (_) {}
+    } finally {
+      if (mounted) setState(() => _carregandoAudio = false);
+    }
+  }
+
+  Future<void> _stopAudio() async {
+    await _audioPlayer.stop();
+    if (mounted) setState(() => _usandoPython = false);
+  }
+
+  void _toggleAudio() {
+    setState(() => _audioOn = !_audioOn);
+    if (_audioOn && _isBreathing) {
+      _startAudio();
+    } else {
+      _stopAudio();
+    }
+  }
+
+  // ── VIBRAÇÃO ────────────────────────────────────
+
+  Future<void> _vibrateInhale() async {
+    final hasVibrator = await Vibration.hasVibrator() ?? false;
+    if (!hasVibrator) return;
+    Vibration.vibrate(pattern: [0, 150, 80, 150], intensities: [0, 80, 0, 120]);
+  }
+
+  Future<void> _vibrateHold() async {
+    final hasVibrator = await Vibration.hasVibrator() ?? false;
+    if (!hasVibrator) return;
+    Vibration.vibrate(pattern: [0, 80], intensities: [0, 60]);
+  }
+
+  Future<void> _vibrateExhale() async {
+    final hasVibrator = await Vibration.hasVibrator() ?? false;
+    if (!hasVibrator) return;
+    Vibration.vibrate(
+      pattern: [0, 300, 100, 200],
+      intensities: [0, 160, 0, 80],
+    );
+  }
+
   // ── RESPIRAÇÃO BOX ──────────────────────────────
 
   void _startBreathing() {
     setState(() {
       _isBreathing = true;
-      if (_audioOn) _audioPlayer.play(AssetSource('audio/focus_binaural.mp3'));
       _cycleCount = 0;
     });
+    _startAudio();
     _runBoxInhale();
   }
 
   void _stopBreathing() {
     _breathController.stop();
     _breathController.reset();
+    Vibration.cancel();
+    _stopAudio();
     setState(() {
       _isBreathing = false;
-      _audioPlayer.stop();
       _phase = FocusPhase.idle;
       _countdown = 0;
     });
@@ -116,7 +185,7 @@ class _FocusScreenState extends State<FocusScreen>
     });
     _breathController.duration = Duration(seconds: _boxSeconds);
     _breathController.forward(from: 0);
-    HapticFeedback.lightImpact();
+    _vibrateInhale();
     for (int i = _boxSeconds; i > 0; i--) {
       if (!_isBreathing || !mounted) return;
       setState(() => _countdown = i);
@@ -132,7 +201,7 @@ class _FocusScreenState extends State<FocusScreen>
       _countdown = _boxSeconds;
     });
     _breathController.stop();
-    HapticFeedback.mediumImpact();
+    _vibrateHold();
     for (int i = _boxSeconds; i > 0; i--) {
       if (!_isBreathing || !mounted) return;
       setState(() => _countdown = i);
@@ -149,7 +218,7 @@ class _FocusScreenState extends State<FocusScreen>
     });
     _breathController.duration = Duration(seconds: _boxSeconds);
     _breathController.reverse();
-    HapticFeedback.lightImpact();
+    _vibrateExhale();
     for (int i = _boxSeconds; i > 0; i--) {
       if (!_isBreathing || !mounted) return;
       setState(() => _countdown = i);
@@ -165,7 +234,7 @@ class _FocusScreenState extends State<FocusScreen>
       _countdown = _boxSeconds;
     });
     _breathController.stop();
-    HapticFeedback.mediumImpact();
+    _vibrateHold();
     for (int i = _boxSeconds; i > 0; i--) {
       if (!_isBreathing || !mounted) return;
       setState(() => _countdown = i);
@@ -198,11 +267,13 @@ class _FocusScreenState extends State<FocusScreen>
             _isPomodoroBreak = true;
             _pomodoroSeconds = 5 * 60;
             HapticFeedback.heavyImpact();
+            Vibration.vibrate(duration: 800);
           } else {
             _isPomodoroBreak = false;
             _pomodoroRound++;
             _pomodoroSeconds = 25 * 60;
             HapticFeedback.heavyImpact();
+            Vibration.vibrate(duration: 800);
           }
         }
       });
@@ -308,21 +379,15 @@ class _FocusScreenState extends State<FocusScreen>
                       letterSpacing: 4,
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.focusPrimary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Rodada $_pomodoroRound',
-                      style: const TextStyle(
-                        color: AppTheme.focusPrimary,
-                        fontSize: 12,
-                      ),
+                  IconButton(
+                    onPressed: _toggleAudio,
+                    icon: Icon(
+                      _audioOn
+                          ? Icons.headphones_rounded
+                          : Icons.headphones_outlined,
+                      color: _audioOn
+                          ? AppTheme.focusPrimary
+                          : AppTheme.focusPrimary.withOpacity(0.3),
                     ),
                   ),
                 ],
@@ -331,7 +396,7 @@ class _FocusScreenState extends State<FocusScreen>
 
             // Tabs
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
               child: Row(
                 children: [
                   _TabButton(
@@ -347,6 +412,32 @@ class _FocusScreenState extends State<FocusScreen>
                     color: AppTheme.focusPrimary,
                     onTap: () => setState(() => _mode = FocusMode.pomodoro),
                   ),
+                  if (_isBreathing && !_carregandoAudio) ...[
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            (_usandoPython
+                                    ? Colors.greenAccent
+                                    : AppTheme.focusPrimary)
+                                .withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        _usandoPython ? '🐍 puro' : '📱 local',
+                        style: TextStyle(
+                          color: _usandoPython
+                              ? Colors.greenAccent
+                              : AppTheme.focusPrimary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -380,7 +471,6 @@ class _FocusScreenState extends State<FocusScreen>
           ),
         ),
 
-        // Animação
         Expanded(
           child: Center(
             child: AnimatedBuilder(
@@ -393,7 +483,6 @@ class _FocusScreenState extends State<FocusScreen>
                 return Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Anel externo
                     Transform.rotate(
                       angle: _rotateController.value * 2 * math.pi,
                       child: Container(
@@ -413,8 +502,6 @@ class _FocusScreenState extends State<FocusScreen>
                         ),
                       ),
                     ),
-
-                    // Círculo respiratório
                     Transform.scale(
                       scale: _phase == FocusPhase.idle
                           ? _pulseAnim.value * 0.7
@@ -432,8 +519,6 @@ class _FocusScreenState extends State<FocusScreen>
                         ),
                       ),
                     ),
-
-                    // Círculo interno
                     Transform.scale(
                       scale: _phase == FocusPhase.idle
                           ? _pulseAnim.value * 0.45
@@ -447,8 +532,6 @@ class _FocusScreenState extends State<FocusScreen>
                         ),
                       ),
                     ),
-
-                    // Countdown
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -476,7 +559,6 @@ class _FocusScreenState extends State<FocusScreen>
           ),
         ),
 
-        // Fase label
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 400),
           child: Text(
@@ -507,9 +589,8 @@ class _FocusScreenState extends State<FocusScreen>
           ),
         ),
 
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
 
-        // Indicadores Box
         if (_isBreathing)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -550,9 +631,8 @@ class _FocusScreenState extends State<FocusScreen>
             ),
           ),
 
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
 
-        // Botão
         GestureDetector(
           onTap: _isBreathing ? _stopBreathing : _startBreathing,
           child: AnimatedContainer(
@@ -585,7 +665,7 @@ class _FocusScreenState extends State<FocusScreen>
           ),
         ),
 
-        const SizedBox(height: 48),
+        const SizedBox(height: 40),
       ],
     );
   }
@@ -597,7 +677,6 @@ class _FocusScreenState extends State<FocusScreen>
       children: [
         const SizedBox(height: 16),
 
-        // Status
         AnimatedContainer(
           duration: const Duration(milliseconds: 500),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -628,7 +707,6 @@ class _FocusScreenState extends State<FocusScreen>
           ),
         ),
 
-        // Timer circular
         Expanded(
           child: Center(
             child: AnimatedBuilder(
@@ -637,7 +715,6 @@ class _FocusScreenState extends State<FocusScreen>
                 return Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Progresso circular
                     SizedBox(
                       width: 260,
                       height: 260,
@@ -650,8 +727,6 @@ class _FocusScreenState extends State<FocusScreen>
                         ),
                       ),
                     ),
-
-                    // Círculo interno pulsando
                     Transform.scale(
                       scale: _pomodoroRunning ? _pulseAnim.value : 1.0,
                       child: Container(
@@ -667,8 +742,6 @@ class _FocusScreenState extends State<FocusScreen>
                         ),
                       ),
                     ),
-
-                    // Tempo
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -705,7 +778,6 @@ class _FocusScreenState extends State<FocusScreen>
           ),
         ),
 
-        // Dica
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Text(
@@ -721,9 +793,8 @@ class _FocusScreenState extends State<FocusScreen>
           ),
         ),
 
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
 
-        // Rodadas
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(4, (i) {
@@ -743,9 +814,8 @@ class _FocusScreenState extends State<FocusScreen>
           }),
         ),
 
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
 
-        // Botão
         GestureDetector(
           onTap: _pomodoroRunning ? _stopPomodoro : _startPomodoro,
           child: AnimatedContainer(
@@ -778,7 +848,7 @@ class _FocusScreenState extends State<FocusScreen>
           ),
         ),
 
-        const SizedBox(height: 48),
+        const SizedBox(height: 40),
       ],
     );
   }
@@ -937,7 +1007,6 @@ class _PomodoroProgressPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 8;
 
-    // Trilha
     final trackPaint = Paint()
       ..color = color.withOpacity(0.1)
       ..style = PaintingStyle.stroke
@@ -945,7 +1014,6 @@ class _PomodoroProgressPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, trackPaint);
 
-    // Progresso
     final progressPaint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
