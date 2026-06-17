@@ -79,6 +79,31 @@ class _FocusScreenState extends State<FocusScreen>
 
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
     _audioPlayer.setVolume(0.4);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _preCarregarAudio();
+    });
+  }
+
+  Future<void> _preCarregarAudio() async {
+    if (!_audioOn) return;
+    setState(() => _carregandoAudio = true);
+    try {
+      final servidorOnline = await ApiService.verificarServidor();
+      if (servidorOnline) {
+        final caminho = await ApiService.baixarBinauralFoco(duracao: 60);
+        if (caminho != null && mounted) {
+          await _audioPlayer.setSource(DeviceFileSource(caminho));
+          setState(() => _usandoPython = true);
+        }
+      } else {
+        await _audioPlayer.setSource(AssetSource('audio/focus_binaural.mp3'));
+      }
+    } catch (e) {
+      debugPrint('Erro pré-carregamento: $e');
+    } finally {
+      if (mounted) setState(() => _carregandoAudio = false);
+    }
   }
 
   @override
@@ -95,25 +120,10 @@ class _FocusScreenState extends State<FocusScreen>
 
   Future<void> _startAudio() async {
     if (!_audioOn) return;
-    setState(() => _carregandoAudio = true);
     try {
-      final servidorOnline = await ApiService.verificarServidor();
-      if (servidorOnline) {
-        final caminho = await ApiService.baixarBinauralFoco(duracao: 300);
-        if (caminho != null && mounted) {
-          await _audioPlayer.play(DeviceFileSource(caminho));
-          setState(() => _usandoPython = true);
-          return;
-        }
-      }
-      await _audioPlayer.play(AssetSource('audio/focus_binaural.mp3'));
-      if (mounted) setState(() => _usandoPython = false);
+      await _audioPlayer.resume();
     } catch (e) {
-      try {
-        await _audioPlayer.play(AssetSource('audio/focus_binaural.mp3'));
-      } catch (_) {}
-    } finally {
-      if (mounted) setState(() => _carregandoAudio = false);
+      debugPrint('Erro ao iniciar áudio: $e');
     }
   }
 
