@@ -12,8 +12,10 @@ class MenuScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppTheme.textSecondary),
+          icon: const Icon(
+            Icons.arrow_back_ios_rounded,
+            color: AppTheme.textSecondary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -31,7 +33,6 @@ class MenuScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Título
             const Text(
               'Como o PulseBio funciona',
               style: TextStyle(
@@ -53,7 +54,6 @@ class MenuScreen extends StatelessWidget {
 
             const SizedBox(height: 40),
 
-            // Seção Nervo Vago
             _InfoSection(
               icon: Icons.hub_rounded,
               color: AppTheme.destressPrimary,
@@ -64,29 +64,64 @@ class MenuScreen extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // Seção Módulo Desestresse
             _InfoSection(
               icon: Icons.waves_rounded,
               color: AppTheme.destressPrimary,
               title: 'Módulo Desestresse',
               content:
-                  'Combina 4 estímulos simultâneos para ativar o nervo vago:\n\n• Visão: animações lentas com cores frias (azul e verde) que reduzem a resposta de alerta do cérebro\n\n• Audição: sons binaurais em frequências alfa (8-12 Hz) que induzem relaxamento profundo\n\n• Respiração: técnica 4-7-8 (inspira 4s, segura 7s, expira 8s) comprovada para reduzir cortisol\n\n• Tato: vibração haptica sincronizada com a respiração para amplificar o efeito vagal',
+                  'Combina 4 estímulos simultâneos para ativar o nervo vago:\n\n• Visão: animações lentas com cores frias (azul e verde) que reduzem a resposta de alerta do cérebro\n\n• Audição: sons binaurais em frequências theta (4-8 Hz) que induzem relaxamento profundo\n\n• Respiração: técnica 4-7-8 (inspira 4s, segura 7s, expira 8s) comprovada para reduzir cortisol\n\n• Tato: vibração haptica sincronizada com a respiração para amplificar o efeito vagal',
+              duracao: _DuracaoInfo(
+                titulo: 'Duração recomendada',
+                itens: [
+                  '5 a 10 minutos por sessão (de 6 a 10 ciclos completos)',
+                  'Pode repetir 2 a 3 vezes ao dia',
+                  'Ideal: ao acordar, antes de dormir, ou em momentos de ansiedade',
+                ],
+                color: AppTheme.destressPrimary,
+              ),
             ),
 
             const SizedBox(height: 24),
 
-            // Seção Módulo Foco
             _InfoSection(
               icon: Icons.psychology_rounded,
               color: AppTheme.focusPrimary,
-              title: 'Módulo Foco e Memória',
+              title: 'Módulo Foco — Box Breathing',
               content:
-                  'Ativa o córtex pré-frontal e o hipocampo — regiões responsáveis pela concentração e consolidação de memórias:\n\n• Visão: cores quentes (âmbar e laranja) que estimulam o estado de alerta focado\n\n• Audição: frequências binaurais beta (13-30 Hz) para foco, e gama (30-50 Hz) para recuperação de memória\n\n• Respiração: Box Breathing (4-4-4-4) usado por atletas e militares para máxima concentração\n\n• Timer Pomodoro: sessões de 25 minutos com pausas guiadas para otimizar a retenção',
+                  'Ativa o córtex pré-frontal — região responsável pela concentração:\n\n• Visão: cores quentes (âmbar e laranja) que estimulam o estado de alerta focado\n\n• Audição: frequências binaurais beta (13-30 Hz) para foco e concentração\n\n• Respiração: Box Breathing (4-4-4-4) usado por atletas e militares para máxima concentração',
+              duracao: _DuracaoInfo(
+                titulo: 'Duração recomendada',
+                itens: [
+                  '3 a 5 minutos antes de começar a estudar',
+                  '4 a 8 ciclos completos por sessão',
+                  'Pode repetir entre os blocos de Pomodoro, na pausa',
+                ],
+                color: AppTheme.focusPrimary,
+              ),
             ),
 
             const SizedBox(height: 24),
 
-            // Seção Respiração
+            _InfoSection(
+              icon: Icons.timer_outlined,
+              color: AppTheme.focusPrimary,
+              title: 'Módulo Foco — Pomodoro',
+              content:
+                  'Técnica de produtividade que alterna blocos de foco intenso com pausas curtas, respeitando o limite natural de atenção do cérebro.\n\nDurante a pausa, o cérebro consolida o que foi estudado — por isso a pausa é parte do aprendizado, não uma interrupção dele.',
+              duracao: _DuracaoInfo(
+                titulo: 'Estrutura recomendada',
+                itens: [
+                  '25 minutos de foco + 5 minutos de pausa (1 rodada)',
+                  'Repetir por 4 rodadas seguidas',
+                  'Após as 4 rodadas, fazer uma pausa longa de 15 a 30 minutos',
+                  'Sessão completa: aproximadamente 2 horas',
+                ],
+                color: AppTheme.focusPrimary,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
             _InfoSection(
               icon: Icons.air_rounded,
               color: AppTheme.homePrimary,
@@ -97,25 +132,25 @@ class MenuScreen extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // Seção Sons Binaurais
             _InfoSection(
               icon: Icons.hearing_rounded,
               color: AppTheme.homePrimary,
               title: 'Sons Binaurais',
               content:
-                  'Sons binaurais funcionam quando frequências ligeiramente diferentes são tocadas em cada ouvido. O cérebro percebe a diferença entre elas e sincroniza suas ondas cerebrais com essa frequência.\n\nUse sempre fones de ouvido para o efeito completo.\n\nFrequências usadas no app:\n• Delta (1-4 Hz): sono profundo\n• Teta (4-8 Hz): meditação e criatividade\n• Alfa (8-12 Hz): relaxamento e calma\n• Beta (13-30 Hz): foco e concentração\n• Gama (30-50 Hz): memória e aprendizado',
+                  'Sons binaurais funcionam quando frequências ligeiramente diferentes são tocadas em cada ouvido. O cérebro percebe a diferença entre elas e sincroniza suas ondas cerebrais com essa frequência.\n\nUse sempre fones de ouvido para o efeito completo.\n\nFrequências usadas no app:\n• Theta (4-8 Hz): relaxamento profundo — Desestresse\n• Beta (13-30 Hz): foco e concentração — Foco',
             ),
 
             const SizedBox(height: 40),
 
-            // Rodapé
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: AppTheme.homePrimary.withOpacity(0.06),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                    color: AppTheme.homePrimary.withOpacity(0.15), width: 1),
+                  color: AppTheme.homePrimary.withOpacity(0.15),
+                  width: 1,
+                ),
               ),
               child: const Text(
                 '⚠️ O PulseBio é uma ferramenta de bem-estar e não substitui acompanhamento médico ou psicológico profissional.',
@@ -135,17 +170,31 @@ class MenuScreen extends StatelessWidget {
   }
 }
 
+class _DuracaoInfo {
+  final String titulo;
+  final List<String> itens;
+  final Color color;
+
+  _DuracaoInfo({
+    required this.titulo,
+    required this.itens,
+    required this.color,
+  });
+}
+
 class _InfoSection extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String title;
   final String content;
+  final _DuracaoInfo? duracao;
 
   const _InfoSection({
     required this.icon,
     required this.color,
     required this.title,
     required this.content,
+    this.duracao,
   });
 
   @override
@@ -184,6 +233,67 @@ class _InfoSection extends StatelessWidget {
               height: 1.75,
             ),
           ),
+          if (duracao != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: duracao!.color.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.schedule_rounded,
+                        color: duracao!.color,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        duracao!.titulo,
+                        style: TextStyle(
+                          color: duracao!.color,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ...duracao!.itens.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '•  ',
+                            style: TextStyle(
+                              color: duracao!.color,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              item,
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 13,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
